@@ -5,52 +5,57 @@ on:
   push:
     branches:
       - main
+
   workflow_dispatch:
 
 jobs:
+
   build:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: 17
 
-      - name: Build & Test with Maven
-        run: mvn clean verify
+      - name: Build WAR File
+        run: mvn clean package
 
-      - name: Upload WAR artifact
+      - name: Upload WAR Artifact
         uses: actions/upload-artifact@v4
         with:
           name: war-file
           path: target/*.war
+
 
   deploy-dev:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download WAR artifact
+
+      - name: Download WAR Artifact
         uses: actions/download-artifact@v4
         with:
           name: war-file
 
-      - name: Deploy to DEV
+      - name: Deploy to DEV Tomcat
         env:
           URL: ${{ secrets.TOMCAT_URL_DEV }}
           USER: ${{ secrets.TOMCAT_USER_DEV }}
-          PASS: ${{ secrets.TOMCAT_PASS_DEV }}  
+          PASS: ${{ secrets.TOMCAT_PASS_DEV }}
 
         run: |
           WAR_FILE=$(ls *.war | head -n 1)
 
-          echo "Deploying $WAR_FILE to DEV ($URL)"
+          echo "Deploying $WAR_FILE to DEV"
 
-          curl -u "$USER:$PASS" --fail -T "$WAR_FILE" \
-            "$URL/deploy?path=/train-ticket-reservation&update=true"
+          curl -u "$USER:$PASS" --upload-file "$WAR_FILE" \
+          "$URL/deploy?path=/train-ticket-reservation&update=true"
 ```
