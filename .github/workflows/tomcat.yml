@@ -5,12 +5,13 @@ on:
   push:
     branches:
       - main
+
   workflow_dispatch:
 
 jobs:
+
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -40,7 +41,7 @@ jobs:
         with:
           name: war-file
 
-      - name: Deploy WAR to DEV Tomcat
+      - name: Deploy to DEV
         env:
           URL: ${{ secrets.TOMCAT_URL_DEV }}
           USERNAME: ${{ secrets.TOMCAT_USER_DEV }}
@@ -48,10 +49,7 @@ jobs:
 
         run: |
           WAR_FILE=$(find . -name "*.war" | head -n 1)
+          echo "Deploying $WAR_FILE"
 
-          echo "Deploying $WAR_FILE to DEV"
+          curl -u "$USERNAME:$PASSWORD" --upload-file "$WAR_FILE" "$URL/deploy?path=/train-ticket-reservation&update=true"
 
-          curl -u "$USERNAME:$PASSWORD" \
-          --upload-file "$WAR_FILE" \
-          "$URL/deploy?path=/train-ticket-reservation&update=true"
-```
