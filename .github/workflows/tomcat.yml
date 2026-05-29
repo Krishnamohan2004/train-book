@@ -12,7 +12,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -31,19 +30,17 @@ jobs:
           name: war-file
           path: target/*.war
 
-
   deploy-dev:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Download WAR
         uses: actions/download-artifact@v4
         with:
           name: war-file
 
-      - name: Deploy to Tomcat DEV
+      - name: Deploy to DEV Tomcat
         env:
           URL: ${{ secrets.TOMCAT_URL_DEV }}
           USER: ${{ secrets.TOMCAT_USER_DEV }}
@@ -51,9 +48,7 @@ jobs:
 
         run: |
           WAR_FILE=$(ls *.war | head -n 1)
-
           echo "Deploying $WAR_FILE"
 
-          curl -u "$USER:$PASS" --upload-file "$WAR_FILE" \
-          "$URL/deploy?path=/train-ticket-reservation&update=true"
+          curl -u "$USER:$PASS" --upload-file "$WAR_FILE" "$URL/deploy?path=/train-ticket-reservation&update=true"
 ```
