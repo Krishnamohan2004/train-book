@@ -41,4 +41,4 @@ jobs:
             -Dsonar.projectKey=myapp \
             -Dsonar.projectName=MyApp \
             -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
-            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }}     
