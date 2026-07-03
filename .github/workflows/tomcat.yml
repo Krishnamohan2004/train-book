@@ -1,44 +1,52 @@
-name: CI - SonarQube Only
+name: Build and Deploy train-ticket-reservation
 
 on:
   push:
     branches:
       - master
-      - dev
-      - test
-      - pre-prod
-      - main
   workflow_dispatch:
 
 jobs:
-  sonar-scan:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: ☕ Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '17'
 
-      - name: Cache Maven Packages
-        uses: actions/cache@v4
+      - name: 🔨 Build with Maven
+        run: mvn clean package -DskipTests
+
+      - name: 🗂 Find WAR file
+        run: echo "WAR_FILE=$(ls target/*.war | head -n 1)" >> $GITHUB_ENV
+
+      - name: ⬆ Upload WAR artifact
+        uses: actions/upload-artifact@v4
         with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+          name: war-file
+          path: ${{ env.WAR_FILE }}
 
-      - name: Build project
-        run: mvn -B clean verify
-
-      - name: Run SonarQube Scan
+     
+      - name: Configure Maven settings.xml for Nexus
         run: |
-          mvn -B sonar:sonar \                                        
-            -Dsonar.projectKey=myapp \
-            -Dsonar.projectName=MyApp \
-            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
-            -Dsonar.login=${{ secrets.SONAR_TOKEN }}     
+          mkdir -p ~/.m2
+          cat <<EOF > ~/.m2/settings.xml
+          <settings>
+            <servers>
+              <server>
+                <id>nexus</id>
+                <username>${{ secrets.NEXUS_USERNAME }}</username>
+                <password>${{ secrets.NEXUS_PASSWORD }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+      - name: Upload Artifact to Nexus
+        run: mvn deploy -DaltDeploymentRepository=nexus::default::${{ secrets.NEXUS_REPO_URL }}
