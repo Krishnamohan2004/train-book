@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: train-book
+  namespace: krishna
+spec: 2
+  replicas: 2
+  selector:
+    matchLabels:
+      app: train-book
+  template:
+    metadata:
+      Labels:
+        app: train-book
+      spec:
+        containers:
+        - name: train-book
+          image: krishnamohan2004/vcube
+          imagePullPolicy: Always
+          ports:
+          - containerPort:8080
