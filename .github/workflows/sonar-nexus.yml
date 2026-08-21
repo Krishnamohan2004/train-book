@@ -1,0 +1,127 @@
+name: CI/CD Pipeline with SonarQube and Nexus
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ==================================================
+      # 1. Checkout Source Code
+      # ==================================================
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+
+      # ==================================================
+      # 2. Setup Java 17
+      # ==================================================
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+
+      # ==================================================
+      # 3. Check Java and Maven Versions
+      # ==================================================
+      - name: Check Java and Maven
+        run: |
+          java -version
+          mvn -version
+
+
+      # ==================================================
+      # 4. Build Project
+      # ==================================================
+      - name: Build Project
+        run: |
+          mvn clean verify
+
+
+      # ==================================================
+      # 5. Verify WAR File
+      # ==================================================
+      - name: Verify WAR File
+        run: |
+          echo "Checking generated WAR file..."
+          ls -lh target/
+          
+          if [ -f target/*.war ]; then
+            echo "WAR file generated successfully."
+          else
+            echo "WAR file was not generated."
+            exit 1
+          fi
+
+
+      # ==================================================
+      # 6. SonarQube Scan
+      # ==================================================
+      - name: SonarQube Scan
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.7.0.6970:sonar \
+            -Dsonar.projectKey=train \
+            -Dsonar.projectName=TrainBook \
+            -Dsonar.host.url="$SONAR_HOST_URL" \
+            -Dsonar.token="$SONAR_TOKEN"
+
+
+      # ==================================================
+      # 7. Configure Maven settings.xml for Nexus
+      # ==================================================
+      - name: Configure Maven settings.xml for Nexus
+        env:
+          NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+        run: |
+          mkdir -p ~/.m2
+
+          cat > ~/.m2/settings.xml <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>nexus</id>
+                <username>${NEXUS_USERNAME}</username>
+                <password>${NEXUS_PASSWORD}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+          echo "Maven settings.xml created successfully."
+
+
+      # ==================================================
+      # 8. Test Nexus Connection
+      # ==================================================
+      - name: Test Nexus Connection
+        env:
+          NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+        run: |
+          echo "Testing connection to Nexus..."
+
+          curl -I \
+            -u "$NEXUS_USERNAME:$NEXUS_PASSWORD" \
+            "${{ secrets.NEXUS_REPO_URL }}"
+
+
+      # ==================================================
+      # 9. Upload Artifact to Nexus
+      # ==================================================
+      - name: Upload Artifact to Nexus
+        run: |
+          mvn deploy \
+            -DaltDeploymentRepository=nexus::${{ secrets.NEXUS_REPO_URL }}
