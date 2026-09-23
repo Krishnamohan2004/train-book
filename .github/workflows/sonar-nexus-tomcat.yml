@@ -12,7 +12,7 @@ on:
 jobs:
 
   # ==========================================================
-  # 1. BUILD + TEST + SONARQUBE + NEXUS
+  # BUILD + TEST + SONARQUBE + NEXUS
   # ==========================================================
 
   build:
@@ -20,16 +20,12 @@ jobs:
 
     steps:
 
-      # ------------------------------------------------------
-      # Checkout Source Code
-      # ------------------------------------------------------
+      # Checkout source code
       - name: Checkout code
         uses: actions/checkout@v4
 
 
-      # ------------------------------------------------------
       # Setup Java 17
-      # ------------------------------------------------------
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -38,40 +34,33 @@ jobs:
           cache: maven
 
 
-      # ------------------------------------------------------
       # Build and Test
-      # ------------------------------------------------------
       - name: Build & Test with Maven
         run: |
           mvn clean verify
 
 
-      # ------------------------------------------------------
-      # SonarQube Scan
-      # ------------------------------------------------------
+      # SonarQube
       - name: SonarQube Scan
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
         run: |
-          mvn sonar:sonar \
+          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.7.0.6970:sonar \
             -Dsonar.projectKey=train-ticket-reservation \
             -Dsonar.projectName=train-ticket-reservation \
             -Dsonar.host.url="$SONAR_HOST_URL" \
             -Dsonar.token="$SONAR_TOKEN"
 
 
-      # ------------------------------------------------------
-      # Configure Maven Settings for Nexus
-      # ------------------------------------------------------
+      # Configure Maven for Nexus
       - name: Configure Maven Settings
         env:
           NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
 
         run: |
-
           mkdir -p ~/.m2
 
           cat > ~/.m2/settings.xml <<EOF
@@ -87,23 +76,18 @@ jobs:
           EOF
 
 
-      # ------------------------------------------------------
       # Deploy WAR to Nexus
-      # ------------------------------------------------------
       - name: Deploy to Nexus
         env:
           NEXUS_URL: ${{ secrets.NEXUS_URL }}
 
         run: |
-
           mvn deploy \
             -DskipTests \
             -DaltDeploymentRepository=nexus::${NEXUS_URL}
 
 
-      # ------------------------------------------------------
-      # Upload WAR as GitHub Artifact
-      # ------------------------------------------------------
+      # Upload WAR for Tomcat deployment
       - name: Upload WAR artifact
         uses: actions/upload-artifact@v4
 
@@ -114,7 +98,7 @@ jobs:
 
 
   # ==========================================================
-  # 2. DEPLOY TO TOMCAT
+  # DEPLOY TO TOMCAT
   # ==========================================================
 
   deploy:
@@ -123,9 +107,7 @@ jobs:
 
     steps:
 
-      # ------------------------------------------------------
       # Download WAR
-      # ------------------------------------------------------
       - name: Download WAR artifact
         uses: actions/download-artifact@v4
 
@@ -133,9 +115,7 @@ jobs:
           name: war-file
 
 
-      # ------------------------------------------------------
       # Deploy WAR to Tomcat
-      # ------------------------------------------------------
       - name: Deploy to Tomcat
         env:
           URL: ${{ secrets.TOMCAT_URL }}
@@ -146,16 +126,15 @@ jobs:
 
           WAR_FILE=$(ls *.war | head -n 1)
 
-          echo "===================================="
-          echo "Deploying WAR to Tomcat"
-          echo "WAR File: $WAR_FILE"
-          echo "===================================="
+          echo "======================================"
+          echo "Deploying $WAR_FILE to Tomcat"
+          echo "======================================"
 
           curl -u "$USER:$PASS" \
             --fail \
             -T "$WAR_FILE" \
             "$URL/deploy?path=/train-ticket-reservation&update=true"
 
-          echo "===================================="
+          echo "======================================"
           echo "Tomcat Deployment Successful"
-          echo "===================================="
+          echo "======================================"
