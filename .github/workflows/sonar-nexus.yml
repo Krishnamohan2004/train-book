@@ -42,14 +42,29 @@ jobs:
       - name: Package
         run: mvn package -DskipTests
 
-      # 7. Upload Artifact to Nexus
-      - name: Upload Artifact to Nexus
+      # 7. Configure Maven Credentials for Nexus
+      - name: Configure Maven Settings
         env:
           NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
-          NEXUS_URL: ${{ secrets.NEXUS_URL }}
         run: |
-          mvn deploy \
-            -DskipTests \
-            -Dnexus.username="$NEXUS_USERNAME" \
-            -Dnexus.password="$NEXUS_PASSWORD"
+          mkdir -p ~/.m2
+
+          cat > ~/.m2/settings.xml <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>nexus</id>
+                <username>${NEXUS_USERNAME}</username>
+                <password>${NEXUS_PASSWORD}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+      # 8. Deploy Artifact to Nexus
+      - name: Deploy to Nexus
+        run: |
+          mvn deploy -DskipTests \
+            -DaltDeploymentRepository=nexus::http://54.252.155.23:8081/repository/maven-snapshots/
+
