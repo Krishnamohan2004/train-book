@@ -1,70 +1,71 @@
 
-name: CI/CD Pipeline with Nexus
+name: Build and Deploy train-ticket-reservation
 
 on:
   push:
     branches:
       - main
 
+  workflow_dispatch:
+
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
 
     steps:
 
-      # 1. Checkout Source Code
-      - name: Checkout Source
+      # 1. Checkout source code
+      - name: Checkout code
         uses: actions/checkout@v4
 
       # 2. Setup Java 17
-      - name: Setup Java 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
           cache: maven
 
-      # 3. Validate
-      - name: Validate
-        run: mvn validate
+      # 3. Build and test
+      - name: Build & Test with Maven
+        run: mvn clean verify
 
-      # 4. Compile
-      - name: Compile
-        run: mvn compile
+      # 4. Upload WAR artifact
+      - name: Upload WAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: war-file
+          path: target/*.war
 
-      # 5. Test
-      - name: Test
-        run: mvn test
 
-      # 6. Package
-      - name: Package
-        run: mvn package -DskipTests
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
 
-      # 7. Configure Maven Credentials for Nexus
-      - name: Configure Maven Settings
+    steps:
+
+      # 5. Download WAR artifact
+      - name: Download WAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: war-file
+
+      # 6. Deploy WAR to Tomcat
+      - name: Deploy to Tomcat
         env:
-          NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
-          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+          URL: ${{ secrets.TOMCAT_URL }}
+          USER: ${{ secrets.TOMCAT_USER }}
+          PASS: ${{ secrets.TOMCAT_PASS }}
+
         run: |
-          mkdir -p ~/.m2
 
-          cat > ~/.m2/settings.xml <<EOF
-          <settings>
-            <servers>
-              <server>
-                <id>nexus</id>
-                <username>${NEXUS_USERNAME}</username>
-                <password>${NEXUS_PASSWORD}</password>
-              </server>
-            </servers>
-          </settings>
-          EOF
+          WAR_FILE=$(ls *.war | head -n 1)
 
-      # 8. Deploy Artifact to Nexus
-      - name: Deploy to Nexus
-        run: |
-          mvn deploy -DskipTests \
-            -DaltDeploymentRepository=nexus::http://54.252.155.23:8081/repository/maven-snapshots/
+          echo "Deploying $WAR_FILE to Tomcat"
 
+          curl -u "$USER:$PASS" \
+            --fail \
+            -T "$WAR_FILE" \
+            "$URL/deploy?path=/train-ticket-reservation&update=true"
+
+          echo "Deployment successful!"
