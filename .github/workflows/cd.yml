@@ -1,0 +1,12 @@
+- name: 📝 Update ECS Task Definition
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          sed -i "s|<IMAGE>|$ACCOUNT_ID.dkr.ecr.${AWS_REGION}.amazonaws.com/vcube-137:${{ env.IMAGE_TAG }}|g" task-definition.json
+
+      - name: 🚀 Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: task-definition.json
+          service: vmr-service-2okg60yu
+          cluster: vcube
+          wait-for-service-stability: true
