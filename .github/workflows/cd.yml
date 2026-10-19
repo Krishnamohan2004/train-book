@@ -1,12 +1,51 @@
-- name: 📝 Update ECS Task Definition
-        run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          sed -i "s|<IMAGE>|$ACCOUNT_ID.dkr.ecr.${AWS_REGION}.amazonaws.com/vcube-137:${{ env.IMAGE_TAG }}|g" task-definition.json
 
-      - name: 🚀 Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+name: CD - Deploy Train Ticket Reservation to Tomcat
+
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: 'Successful CI workflow run ID'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Download WAR artifact from the selected CI run
+      - name: Download WAR artifact
+        uses: actions/download-artifact@v4
         with:
-          task-definition: task-definition.json
-          service: vmr-service-2okg60yu
-          cluster: vcube
-          wait-for-service-stability: true
+          name: war-file
+          path: ./artifact
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.ci_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. Deploy WAR to Tomcat
+      - name: Deploy to Tomcat
+        env:
+          URL: ${{ secrets.TOMCAT_URL }}
+          USER: ${{ secrets.TOMCAT_USER }}
+          PASS: ${{ secrets.TOMCAT_PASS }}
+
+        run: |
+          set -euo pipefail
+
+          WAR_FILE=$(find ./artifact -maxdepth 1 -name '*.war' -print -quit)
+
+          if [ -z "$WAR_FILE" ]; then
+            echo "ERROR: WAR file not found"
+            exit 1
+          fi
+
+          echo "Deploying $WAR_FILE to Tomcat"
+
+          curl --fail --show-error --silent \
+            --user "$USER:$PASS" \
+            --upload-file "$WAR_FILE" \
+            "$URL/deploy?path=/train-ticket-reservation&update=true"
+
+          echo "Deployment successful!"
