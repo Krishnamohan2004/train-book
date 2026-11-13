@@ -1,3 +1,4 @@
+
 name: Build and Deploy train-ticket-reservation
 
 on:
@@ -15,26 +16,32 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
+          cache: maven
 
-      - name: Build & Test with Maven
+      - name: Build and Test with Maven
         run: mvn clean verify
+
+      - name: Verify WAR file
+        run: |
+          ls -lh target/*.war
 
       - name: Upload WAR artifact
         uses: actions/upload-artifact@v4
         with:
           name: war-file
           path: target/*.war
-
+          if-no-files-found: error
 
   deploy-dev:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: DEV
 
@@ -50,16 +57,25 @@ jobs:
           USER: ${{ secrets.TOMCAT_USER_DEV }}
           PASS: ${{ secrets.TOMCAT_PASS_DEV }}
         run: |
-          WAR_FILE=$(ls *.war | head -n 1)
-          echo "Deploying $WAR_FILE to DEV ($URL)"
-          curl -u "$USER:$PASS" --fail -T "$WAR_FILE" \
-            "$URL/deploy?path=/train-ticket-reservation&update=true"
+          WAR_FILE=$(find . -name "*.war" -type f | head -n 1)
+
+          test -n "$WAR_FILE" || {
+            echo "WAR file not found"
+            exit 1
+          }
+
+          echo "Deploying $WAR_FILE to DEV"
+
+          curl --show-error --fail-with-body \
+            -u "$USER:$PASS" \
+            -T "$WAR_FILE" \
+            "$URL/manager/text/deploy?path=/train-ticket-reservation&update=true"
 
   deploy-test:
     needs: build
+    if: github.ref == 'refs/heads/test'
     runs-on: ubuntu-latest
     environment: TEST
-      
 
     steps:
       - name: Download WAR artifact
@@ -67,19 +83,29 @@ jobs:
         with:
           name: war-file
 
-      - name: Deploy to DEV
+      - name: Deploy to TEST
         env:
           URL: ${{ secrets.TOMCAT_URL_TEST }}
           USER: ${{ secrets.TOMCAT_USER_TEST }}
           PASS: ${{ secrets.TOMCAT_PASS_TEST }}
         run: |
-          WAR_FILE=$(ls *.war | head -n 1)
-          echo "Deploying $WAR_FILE to TEST ($URL)"
-          curl -u "$USER:$PASS" --fail -T "$WAR_FILE" \
-            "$URL/deploy?path=/train-ticket-reservation&update=true"
+          WAR_FILE=$(find . -name "*.war" -type f | head -n 1)
+
+          test -n "$WAR_FILE" || {
+            echo "WAR file not found"
+            exit 1
+          }
+
+          echo "Deploying $WAR_FILE to TEST"
+
+          curl --show-error --fail-with-body \
+            -u "$USER:$PASS" \
+            -T "$WAR_FILE" \
+            "$URL/manager/text/deploy?path=/train-ticket-reservation&update=true"
 
   deploy-pre-prod:
     needs: build
+    if: github.ref == 'refs/heads/pre-prod'
     runs-on: ubuntu-latest
     environment: PRE-PROD
 
@@ -95,13 +121,23 @@ jobs:
           USER: ${{ secrets.TOMCAT_USER_PRE_PROD }}
           PASS: ${{ secrets.TOMCAT_PASS_PRE_PROD }}
         run: |
-          WAR_FILE=$(ls *.war | head -n 1)
-          echo "Deploying $WAR_FILE to PRE-PROD ($URL)"
-          curl -u "$USER:$PASS" --fail -T "$WAR_FILE" \
-            "$URL/deploy?path=/train-ticket-reservation&update=true"
+          WAR_FILE=$(find . -name "*.war" -type f | head -n 1)
+
+          test -n "$WAR_FILE" || {
+            echo "WAR file not found"
+            exit 1
+          }
+
+          echo "Deploying $WAR_FILE to PRE-PROD"
+
+          curl --show-error --fail-with-body \
+            -u "$USER:$PASS" \
+            -T "$WAR_FILE" \
+            "$URL/manager/text/deploy?path=/train-ticket-reservation&update=true"
 
   deploy-prod:
     needs: build
+    if: github.ref == 'refs/heads/prod'
     runs-on: ubuntu-latest
     environment: PROD
 
@@ -117,7 +153,16 @@ jobs:
           USER: ${{ secrets.TOMCAT_USER_PROD }}
           PASS: ${{ secrets.TOMCAT_PASS_PROD }}
         run: |
-          WAR_FILE=$(ls *.war | head -n 1)
-          echo "Deploying $WAR_FILE to PROD ($URL)"
-          curl -u "$USER:$PASS" --fail -T "$WAR_FILE" \
-            "$URL/deploy?path=/train-ticket-reservation&update=true"
+          WAR_FILE=$(find . -name "*.war" -type f | head -n 1)
+
+          test -n "$WAR_FILE" || {
+            echo "WAR file not found"
+            exit 1
+          }
+
+          echo "Deploying $WAR_FILE to PROD"
+
+          curl --show-error --fail-with-body \
+            -u "$USER:$PASS" \
+            -T "$WAR_FILE" \
+            "$URL/manager/text/deploy?path=/train-ticket-reservation&update=true"
